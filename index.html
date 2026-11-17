@@ -20,11 +20,13 @@ button.secondary{background:#303a3f;color:var(--text);border:1px solid #465158}b
 button:disabled{opacity:.5;cursor:not-allowed}.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.row>*{flex:1}.toprow{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.hidden{display:none!important}
 .notice{padding:12px;border-radius:9px;background:#202a2d;border:1px solid var(--line);margin:12px 0;color:#dce5e7;white-space:pre-wrap}.notice.error{border-color:#854c47;color:#ffd5d0}.notice.ok{border-color:#3e7959;color:#c8f0d6}
-.job{border:1px solid var(--line);background:#141a1d;border-radius:11px;padding:15px;margin:10px 0}
+.appnav{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}.appnav button{background:#303a3f;color:var(--text);border:1px solid #465158}.appnav button.active{background:var(--accent);color:#15110d;border-color:var(--accent)}
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}.metric{background:#141a1d;border:1px solid var(--line);border-radius:11px;padding:16px}.metric strong{display:block;font-size:26px;margin-top:6px}.quick{display:flex;gap:10px;flex-wrap:wrap}.quick button{flex:1;min-width:150px}.recent{margin-top:16px}.job{border:1px solid var(--line);background:#141a1d;border-radius:11px;padding:15px;margin:10px 0}
 .jobhead{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.tag{font-size:11px;padding:4px 8px;border-radius:20px;background:#303a3f;color:#dbe4e7}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.actions button{font-size:13px;padding:8px 11px}
 hr{border:0;border-top:1px solid var(--line);margin:18px 0}
 footer{text-align:center;color:var(--muted);font-size:12px;padding:20px}
+@media(max-width:850px){.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.grid{grid-template-columns:1fr}header{align-items:flex-start}.brand{font-size:19px}.panel{padding:16px}main{margin-top:16px}}
 </style>
 </head>
@@ -39,9 +41,32 @@ footer{text-align:center;color:var(--muted);font-size:12px;padding:20px}
 </section>
 <section id="appPanel" class="hidden">
 <div class="panel">
-<div class="toprow"><div><h1>Pracovní prostor GN STEEL</h1><div id="workspaceInfo" class="muted small">Načítám pracovní prostor…</div></div><button class="secondary" id="logoutBtn">Odhlásit</button></div>
-<div id="appMsg" class="notice hidden"></div>
+ <div class="toprow"><div><h1>GN STEEL</h1><div class="muted small">Hlavní pracovní plocha</div></div><button class="secondary" id="logoutBtn">Odhlásit</button></div>
+ <div id="workspaceInfo" class="muted small">Načítám pracovní prostor…</div>
+ <div id="appMsg" class="notice hidden"></div>
 </div>
+<nav class="appnav" aria-label="Hlavní navigace">
+ <button type="button" class="active" data-view="home">Domů</button>
+ <button type="button" data-view="newjob">Nová zakázka</button>
+ <button type="button" data-view="jobs">Zakázky</button>
+</nav>
+<section id="homeView" class="view">
+ <div class="panel">
+  <div class="toprow"><div><div class="sub">PŘEHLED FIRMY</div><h1>Vítej v GN STEEL</h1><div class="muted">Rychlý přehled zakázek a výroby</div></div><button type="button" id="homeNewJob">＋ Nová zakázka</button></div>
+  <div class="metrics">
+   <div class="metric"><span class="muted small">Všechny zakázky</span><strong id="metricAll">0</strong></div>
+   <div class="metric"><span class="muted small">Nové / nabídky</span><strong id="metricNew">0</strong></div>
+   <div class="metric"><span class="muted small">Ve výrobě</span><strong id="metricProgress">0</strong></div>
+   <div class="metric"><span class="muted small">Dokončené</span><strong id="metricDone">0</strong></div>
+  </div>
+  <h2>Rychlé akce</h2>
+  <div class="quick"><button type="button" id="quickNewJob">＋ Vytvořit zakázku</button><button type="button" class="secondary" id="quickJobs">Zobrazit všechny zakázky</button></div>
+  <div class="recent"><h2>Poslední zakázky</h2><div id="recentJobs" class="muted">Načítám…</div></div>
+ </div>
+</section>
+<section id="newJobView" class="view hidden">
+<div class="panel">
+<div class="toprow"><h2>Nová zakázka</h2><button type="button" class="secondary" data-view="home">Zpět na přehled</button></div>
 <div class="panel">
 <h2>Nová zakázka</h2>
 <form id="jobForm">
@@ -61,10 +86,14 @@ footer{text-align:center;color:var(--muted);font-size:12px;padding:20px}
 <button type="submit" id="saveJobBtn">Uložit zakázku do cloudu</button>
 </form>
 </div>
+</div>
+</section>
+<section id="jobsView" class="view hidden">
 <div class="panel">
 <div class="toprow"><h2>Zakázky</h2><button class="secondary" id="refreshBtn">Obnovit seznam</button></div>
 <div id="jobsList" class="muted">Načítám…</div>
 </div>
+</section>
 </section>
 </main>
 <footer>GN STEEL · Cloudová verze · Přístup pouze pro přihlášeného člena pracovního prostoru</footer>
@@ -88,6 +117,7 @@ async function init(){
 function showLogin(){ $("loginPanel").classList.remove("hidden"); $("appPanel").classList.add("hidden"); $("account").textContent="Nepřihlášen"; }
 async function showApp(user){
  currentUser=user; $("loginPanel").classList.add("hidden"); $("appPanel").classList.remove("hidden"); $("account").textContent=user.email||"Přihlášen";
+ setView("home");
  await loadWorkspace();
 }
 async function loadWorkspace(){
@@ -99,12 +129,27 @@ async function loadWorkspace(){
  $("workspaceInfo").textContent=(data.organizations?.name||"GN STEEL")+" · role: "+data.role+" · "+currentUser.email;
  await loadJobs();
 }
+function setView(name){
+ const views={home:"homeView",newjob:"newJobView",jobs:"jobsView"};
+ Object.entries(views).forEach(([key,id])=>$(id).classList.toggle("hidden",key!==name));
+ document.querySelectorAll(".appnav [data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===name));
+}
+function updateDashboard(data){
+ const rows=data||[];
+ $("metricAll").textContent=rows.length;
+ $("metricNew").textContent=rows.filter(j=>["new","quoted","approved"].includes(j.status)).length;
+ $("metricProgress").textContent=rows.filter(j=>j.status==="in_progress").length;
+ $("metricDone").textContent=rows.filter(j=>j.status==="completed").length;
+ const recent=rows.slice(0,5);
+ $("recentJobs").innerHTML=recent.length?recent.map(j=>`<article class="job"><div class="jobhead"><strong>${esc(j.job_number?j.job_number+" · ":"")}${esc(j.name)}</strong><span class="tag">${esc(statusNames[j.status]||j.status)}</span></div></article>`).join(""):'<p class="muted">Zatím tu nejsou žádné zakázky. Můžeš vytvořit první.</p>';
+}
 async function loadJobs(){
  if(!organizationId)return;
  $("jobsList").textContent="Načítám zakázky…";
  const {data,error}=await client.from("jobs").select("*").eq("organization_id",organizationId).order("created_at",{ascending:false});
- if(error){$("jobsList").textContent="Chyba načítání: "+error.message;return;}
- if(!data.length){$("jobsList").innerHTML='<p class="muted">Zatím zde nejsou žádné zakázky. Vytvoř první výše.</p>';return;}
+ if(error){$("jobsList").textContent="Chyba načítání: "+error.message;$("recentJobs").textContent="Zakázky se nepodařilo načíst.";return;}
+ updateDashboard(data);
+ if(!data.length){$("jobsList").innerHTML='<p class="muted">Zatím zde nejsou žádné zakázky. Vytvoř první přes tlačítko Nová zakázka.</p>';return;}
  $("jobsList").innerHTML=data.map(j=>{
  const total=(Number(j.material_cost)||0)+(Number(j.extras_cost)||0)+(Number(j.labor_hours)||0)*(Number(j.hourly_rate)||0)+(Number(j.installation_cost)||0)+(Number(j.overhead_cost)||0);
  return `<article class="job"><div class="jobhead"><div><strong>${esc(j.job_number?j.job_number+" · ":"")}${esc(j.name)}</strong><div class="muted small">${esc(j.offer_date||"Bez data")} · ${money(total)} před marží a DPH</div></div><span class="tag">${esc(statusNames[j.status]||j.status)}</span></div>${j.notes?`<p class="muted small">${esc(j.notes)}</p>`:""}<div class="actions"><button class="secondary" data-doc="${j.id}">Přidat PDF výkres</button><button class="secondary" data-files="${j.id}">Zobrazit PDF</button><button class="danger" data-del="${j.id}">Smazat</button></div><div id="files-${j.id}" class="small muted"></div></article>`;
@@ -120,6 +165,9 @@ $("loginForm").addEventListener("submit",async e=>{
  if(error)message("loginMsg","Přihlášení se nezdařilo: "+error.message,"error"); else await showApp(data.user);
 });
 $("logoutBtn").addEventListener("click",async()=>{await client.auth.signOut();});
+document.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click",()=>setView(b.dataset.view)));
+["homeNewJob","quickNewJob"].forEach(id=>$(id).addEventListener("click",()=>setView("newjob")));
+$("quickJobs").addEventListener("click",()=>setView("jobs"));
 $("refreshBtn").addEventListener("click",loadJobs);
 $("jobForm").addEventListener("submit",async e=>{
  e.preventDefault(); if(!organizationId){message("appMsg","Není načten pracovní prostor.","error");return;}
@@ -128,7 +176,7 @@ $("jobForm").addEventListener("submit",async e=>{
  const {error}=await client.from("jobs").insert(payload);
  btn.disabled=false;btn.textContent="Uložit zakázku do cloudu";
  if(error){message("appMsg","Zakázku se nepodařilo uložit: "+error.message,"error");return;}
- message("appMsg","Zakázka byla uložena do cloudové databáze GN STEEL.","ok");$("jobForm").reset();$("materialCost").value=0;$("laborHours").value=0;$("hourlyRate").value=650;$("installCost").value=0;await loadJobs();
+ message("appMsg","Zakázka byla uložena do cloudové databáze GN STEEL.","ok");$("jobForm").reset();$("materialCost").value=0;$("laborHours").value=0;$("hourlyRate").value=650;$("installCost").value=0;await loadJobs();setView("jobs");
 });
 async function uploadPdf(jobId){
  const picker=document.createElement("input");picker.type="file";picker.accept="application/pdf,.pdf";
