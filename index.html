@@ -78,6 +78,40 @@ footer{text-align:center;color:#788991;font-size:11px;padding:20px}
 <div class="row"><button id="drawBtn">Přepočítat model</button><button class="secondary" id="resetViewBtn">Reset pohledu</button><span class="muted small">Model: jednoduchý ocelový rám / zábradlový panel</span></div>
 <div class="grid" style="margin-top:14px"><div><h3>2D technický pohled</h3><canvas id="view2d" width="900" height="440"></canvas><p class="muted small">Přední pohled s rozměrovými kótami.</p></div><div><h3>3D prostorový náhled</h3><canvas id="view3d" width="900" height="440"></canvas><p class="muted small">Orientační vizualizace rámu a svislé výplně.</p></div></div>
 </div>
+<div class="panel" id="importStudio">
+  <div class="between"><div><h2>Import výkresu nebo fotografie → 3D</h2><p class="muted small">Nový samostatný modul. Stávající evidence zakázek, zákazníků i původní návrhář zůstávají beze změny.</p></div><span class="tag">PDF · DXF · DWG* · JPG · PNG</span></div>
+  <div class="grid">
+    <div>
+      <label>Vyber výkres nebo fotografii
+        <input id="sourceFile" type="file" accept=".pdf,.dxf,.dwg,.jpg,.jpeg,.png,.webp,application/pdf,image/*">
+      </label>
+      <div class="muted small" id="sourceStatus">Soubor se zpracovává pouze v tomto prohlížeči. Zatím se nikam nenahrává.</div>
+      <div id="sourcePreview" class="notice" style="min-height:160px;overflow:auto">Zde se zobrazí náhled vybraného souboru.</div>
+      <p class="muted small">* DWG je potřeba nejprve uložit/exportovat z AutoCADu do DXF. Přímé čtení DWG bez konverze není v této verzi spolehlivě podporováno.</p>
+    </div>
+    <div>
+      <h3>Rozměry pro prostorový model</h3>
+      <p class="muted small">U fotografie nebo PDF potvrď skutečný rozměr. U DXF se načte rozsah geometrie jako výchozí hodnota – jednotky je nutné ověřit.</p>
+      <div class="grid">
+        <label>Šířka (mm)<input id="importW" type="number" min="20" value="2400"></label>
+        <label>Výška (mm)<input id="importH" type="number" min="20" value="1100"></label>
+        <label>Hloubka (mm)<input id="importD" type="number" min="10" value="80"></label>
+        <label>Profil (šířka × výška mm)<select id="importProfile"><option value="40,40">Jekl 40 × 40</option><option value="50,30">Jekl 50 × 30</option><option value="60,40">Jekl 60 × 40</option><option value="80,40">Jekl 80 × 40</option><option value="100,50">Jekl 100 × 50</option><option value="custom">Vlastní / plochá ocel</option></select></label>
+      </div>
+      <div class="grid" id="customProfile" style="display:none">
+        <label>Šířka profilu (mm)<input id="profileW" type="number" min="5" value="40"></label>
+        <label>Výška profilu (mm)<input id="profileH" type="number" min="5" value="40"></label>
+      </div>
+      <div class="actions"><button id="buildImport3d">Vytvořit 3D model</button><button class="secondary" id="resetImport">Vymazat import</button></div>
+      <div class="muted small" id="importInfo">Model je orientační prostorová vizualizace. Před výrobou je nutná kontrola výkresu a rozměrů.</div>
+    </div>
+  </div>
+  <h3 style="margin-top:18px">3D model z importu</h3>
+  <div id="import3dViewport" style="height:420px;border:1px solid #344751;border-radius:11px;overflow:hidden;background:radial-gradient(ellipse at 50% 30%,#24353d,#0c1419 70%);position:relative">
+    <div id="import3dPlaceholder" style="padding:24px;color:#9aabb4">Po načtení souboru a potvrzení rozměrů klikni na „Vytvořit 3D model“.</div>
+  </div>
+  <p class="muted small">Ovládání: tažením otáčíš, kolečkem přibližuješ a oddaluješ.</p>
+</div>
 </section>
 </section>
 </main>
@@ -118,6 +152,100 @@ function draw2d(w,h){const c=$("view2d"),x=c.getContext("2d"),W=c.width,H=c.heig
 let rot=.65,tilt=.35,drag=null;
 function draw3d(w,h,d){const c=$("view3d"),ctx=c.getContext("2d"),W=c.width,H=c.height;ctx.clearRect(0,0,W,H);const s=Math.min(2500/w,2200/h)*.75,ww=w*s,hh=h*s,dd=d*s;const co=Math.cos(rot),si=Math.sin(rot),ct=Math.cos(tilt),st=Math.sin(tilt);function project(p){let X=p[0]*co-p[2]*si,Z=p[0]*si+p[2]*co,Y=p[1]*ct-Z*st;return [W/2+X,H*.55-Y]}function line(a,b,color="#d7e0e4",width=3){const A=project(a),B=project(b);ctx.beginPath();ctx.moveTo(...A);ctx.lineTo(...B);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke()}const a=[-ww/2,0,-dd/2],b=[ww/2,0,-dd/2],c1=[ww/2,hh,-dd/2],d1=[-ww/2,hh,-dd/2],e=[-ww/2,0,dd/2],f=[ww/2,0,dd/2],g=[ww/2,hh,dd/2],i=[-ww/2,hh,dd/2];ctx.lineCap="round";line(a,b,"#df8b3d",7);line(b,c1,"#df8b3d",7);line(c1,d1,"#df8b3d",7);line(d1,a,"#df8b3d",7);line(e,f,"#b7c6ce",5);line(f,g,"#b7c6ce",5);line(g,i,"#b7c6ce",5);line(i,e,"#b7c6ce",5);line(a,e);line(b,f);line(c1,g);line(d1,i);const count=Math.max(3,Math.floor(w/1300)+2);for(let n=1;n<count;n++){let xx=-ww/2+ww*n/count;line([xx,8,-dd/2],[xx,hh-8,-dd/2],"#aabcc5",3);line([xx,8,dd/2],[xx,hh-8,dd/2],"#aabcc5",3)}ctx.fillStyle="#e5edf0";ctx.font="14px system-ui";ctx.textAlign="center";ctx.fillText("3D · tažením otáčej modelem",W/2,28);ctx.fillStyle="#df9a55";ctx.fillText(`${w} × ${h} × ${d} mm`,W/2,H-20)}
 $("drawBtn").onclick=drawModel;$("resetViewBtn").onclick=()=>{rot=.65;tilt=.35;drawModel()};$("view3d").addEventListener("pointerdown",e=>{drag=[e.clientX,e.clientY];$("view3d").setPointerCapture(e.pointerId)});$("view3d").addEventListener("pointermove",e=>{if(!drag)return;rot+=(e.clientX-drag[0])*.01;tilt=Math.max(-.8,Math.min(.8,tilt+(e.clientY-drag[1])*.008));drag=[e.clientX,e.clientY];drawModel()});["pointerup","pointercancel","pointerleave"].forEach(ev=>$("view3d").addEventListener(ev,()=>drag=null));
+
+// --- GN STEEL import module: intentionally isolated from existing customer/job/database logic ---
+let importedDxf=null, importScene=null, importCamera=null, importRenderer=null, importControls=null, importResize=null;
+const importEl=id=>document.getElementById(id);
+function importStatus(t){importEl("sourceStatus").textContent=t}
+function importPreview(content){importEl("sourcePreview").innerHTML=content}
+function parseDxfBounds(raw){
+  const lines=raw.replace(/\r/g,"").split("\n"), pts=[];let section="",entity="",coords={},poly=[];
+  function add(x,y){if(Number.isFinite(x)&&Number.isFinite(y))pts.push([x,y])}
+  for(let i=0;i<lines.length-1;i+=2){
+    const code=lines[i].trim(), val=lines[i+1].trim();
+    if(code==="0"){if(entity==="LINE")add(+coords.x1,+coords.y1);if(entity==="LWPOLYLINE")poly.forEach(p=>add(p[0],p[1]));entity=val;coords={};poly=[]}
+    if(code==="2"&&val==="ENTITIES")section="ENTITIES";
+    if(section!=="ENTITIES")continue;
+    if(entity==="LINE"){if(code==="10")coords.x1=val;if(code==="20")coords.y1=val;if(code==="11")add(+val,NaN);if(code==="30"){}if(code==="21")add(+coords.x1,+val)}
+    if(entity==="LWPOLYLINE"){if(code==="10")poly.push([+val,NaN]);if(code==="20"&&poly.length)poly[poly.length-1][1]=+val}
+    if(entity==="CIRCLE"&&code==="10")coords.cx=+val;
+    if(entity==="CIRCLE"&&code==="20")coords.cy=+val;
+  }
+  if(entity==="LINE")add(+coords.x1,+coords.y1);if(entity==="LWPOLYLINE")poly.forEach(p=>add(p[0],p[1]));
+  // More robust second pass for LINE endpoint group codes.
+  const pairs=raw.replace(/\r/g,"").split("\n");
+  for(let i=0;i<pairs.length-1;i+=2){if(pairs[i].trim()==="10"){let x=+pairs[i+1].trim(),y=NaN;for(let j=i+2;j<Math.min(i+14,pairs.length-1);j+=2){if(pairs[j].trim()==="20"){y=+pairs[j+1].trim();break}if(pairs[j].trim()==="0")break}add(x,y)}}
+  if(!pts.length)return null;
+  const xs=pts.map(p=>p[0]).filter(Number.isFinite),ys=pts.map(p=>p[1]).filter(Number.isFinite);
+  if(!xs.length||!ys.length)return null;
+  return {minX:Math.min(...xs),maxX:Math.max(...xs),minY:Math.min(...ys),maxY:Math.max(...ys),count:pts.length};
+}
+async function loadImportFile(file){
+  if(!file)return;const name=file.name.toLowerCase(),size=(file.size/1024/1024).toFixed(1);
+  if(file.size>40*1024*1024){importStatus("Soubor je větší než 40 MB. Vyber menší soubor.");return}
+  importStatus(`Načítám ${file.name} (${size} MB)…`);importPreview("Načítám náhled…");importedDxf=null;
+  if(/\.(jpg|jpeg|png|webp)$/.test(name)){
+    const url=URL.createObjectURL(file);importPreview(`<img src="${url}" alt="Náhled fotografie" style="max-width:100%;max-height:440px;display:block;margin:auto;border-radius:8px">`);
+    importStatus("Fotografie načtena. Rozměry je nutné potvrdit ručně podle známého rozměru nebo měřítka.");return;
+  }
+  if(name.endsWith(".dwg")){
+    importPreview("<strong>DWG soubor vybrán.</strong><p>Pro načtení geometrie ho prosím otevři v AutoCADu a ulož jako DXF (ASCII nebo běžný DXF), poté nahraj DXF.</p>");
+    importStatus("DWG vyžaduje převod do DXF. Původní soubor zůstal nedotčen.");return;
+  }
+  if(name.endsWith(".dxf")){
+    const raw=await file.text(),b=parseDxfBounds(raw);importedDxf={raw,bounds:b,name:file.name};
+    if(!b){importPreview("<strong>DXF se načetl, ale nepodařilo se určit hranice geometrie.</strong><p>Zkontroluj, zda jde o textový DXF a zda obsahuje entity v modelovém prostoru.</p>");importStatus("DXF načten, automatické určení rozsahu se nezdařilo.");return}
+    const w=Math.max(20,Math.round(b.maxX-b.minX)),h=Math.max(20,Math.round(b.maxY-b.minY));
+    importEl("importW").value=w;importEl("importH").value=h;
+    importPreview(`<strong>DXF geometrie načtena</strong><p>Rozsah výkresu: ${w} × ${h} jednotek · nalezené body: ${b.count}</p><p class="muted small">Ověř jednotky výkresu (mm/palce) a případně rozměry oprav. Náhled 2D DXF se v této verzi nepřekresluje jako plnohodnotný CAD.</p>`);
+    importStatus("DXF načten. Rozměry byly předvyplněny podle rozsahu geometrie; jednotky ověř.");return;
+  }
+  if(name.endsWith(".pdf")){
+    importPreview(`<strong>PDF načten: ${esc(file.name)}</strong><p>PDF je připravené jako podklad. Prostorový model vytvoříš po zadání/potvrzení rozměrů vpravo.</p><p class="muted small">Automatické rozpoznání kót a konstrukčních prvků z PDF zatím není aktivní.</p>`);
+    importStatus("PDF načteno. Zadej skutečné rozměry podle výkresu.");return;
+  }
+  importStatus("Nepodporovaný formát. Použij PDF, DXF, JPG, PNG nebo DWG po převodu do DXF.");
+}
+importEl("sourceFile").addEventListener("change",e=>loadImportFile(e.target.files[0]));
+importEl("importProfile").addEventListener("change",e=>{importEl("customProfile").style.display=e.target.value==="custom"?"grid":"none"});
+function loadThree(){return new Promise((resolve,reject)=>{if(window.THREE){resolve(window.THREE);return}const sc=document.createElement("script");sc.src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js";sc.onload=()=>resolve(window.THREE);sc.onerror=()=>reject(new Error("Nepodařilo se načíst 3D knihovnu. Zkontroluj připojení k internetu."));document.head.appendChild(sc)})}
+async function buildImportedModel(){
+  const w=+importEl("importW").value,h=+importEl("importH").value,d=+importEl("importD").value;
+  if(!(w>0&&h>0&&d>0)){importEl("importInfo").textContent="Zadej platné rozměry větší než nula.";return}
+  importEl("buildImport3d").disabled=true;importEl("importInfo").textContent="Připravuji prostorový model…";
+  try{
+    const THREE=await loadThree(),host=importEl("import3dViewport");
+    if(importRenderer){importRenderer.dispose();host.innerHTML=""}
+    const scene=new THREE.Scene();scene.background=new THREE.Color(0x101a20);
+    const camera=new THREE.PerspectiveCamera(42,host.clientWidth/host.clientHeight,.1,50000);camera.position.set(w*1.25,h*.85,Math.max(w,h)*1.8);
+    const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));renderer.setSize(host.clientWidth,host.clientHeight);host.innerHTML="";host.appendChild(renderer.domElement);
+    scene.add(new THREE.HemisphereLight(0xe7f2ff,0x26323a,2));const light=new THREE.DirectionalLight(0xffffff,2.1);light.position.set(w,h*2,d*3);scene.add(light);
+    const profile=importEl("importProfile").value.split(",");const pw=profile[0]==="custom"?Math.max(5,+importEl("profileW").value):+profile[0],ph=profile[0]==="custom"?Math.max(5,+importEl("profileH").value):+profile[1];
+    const metal=new THREE.MeshStandardMaterial({color:0x9eabb1,metalness:.78,roughness:.3});
+    const accent=new THREE.MeshStandardMaterial({color:0xd98a42,metalness:.68,roughness:.32});
+    const group=new THREE.Group();
+    function beam(x,y,z,bw,bh,bd,mat=metal){const mesh=new THREE.Mesh(new THREE.BoxGeometry(bw,bh,bd),mat);mesh.position.set(x,y,z);group.add(mesh)}
+    // Parametric rectangular frame: top/bottom rails and two uprights.
+    beam(0,ph/2,0,w,pw,d,accent);beam(0,h-ph/2,0,w,pw,d,accent);
+    beam(-w/2+pw/2,h/2,0,pw,h-2*ph,d);beam(w/2-pw/2,h/2,0,pw,h-2*ph,d);
+    const n=Math.max(0,Math.min(30,Math.floor(w/800)));
+    for(let i=1;i<=n;i++){const x=-w/2+(w*i/(n+1));beam(x,h/2,0,pw*.65,h-2*ph,d*.8)}
+    scene.add(group);
+    const grid=new THREE.GridHelper(Math.max(w,h)*1.8,24,0x465861,0x263840);grid.position.y=-pw/2;scene.add(grid);
+    const target=new THREE.Vector3(0,h/2,0);camera.lookAt(target);
+    let down=null;renderer.domElement.addEventListener("pointerdown",e=>{down=[e.clientX,e.clientY]});
+    renderer.domElement.addEventListener("pointermove",e=>{if(!down)return;const dx=e.clientX-down[0],dy=e.clientY-down[1];group.rotation.y+=dx*.008;group.rotation.x+=dy*.006;down=[e.clientX,e.clientY]});
+    ["pointerup","pointerleave","pointercancel"].forEach(ev=>renderer.domElement.addEventListener(ev,()=>down=null));
+    renderer.domElement.addEventListener("wheel",e=>{camera.position.multiplyScalar(e.deltaY>0?1.08:.92);camera.lookAt(target);e.preventDefault()},{passive:false});
+    const animate=()=>{if(!importRenderer||importRenderer!==renderer)return;requestAnimationFrame(animate);renderer.render(scene,camera)};importRenderer=renderer;importScene=scene;importCamera=camera;animate();
+    if(importResize)window.removeEventListener("resize",importResize);importResize=()=>{if(!importRenderer)return;camera.aspect=host.clientWidth/host.clientHeight;camera.updateProjectionMatrix();renderer.setSize(host.clientWidth,host.clientHeight)};window.addEventListener("resize",importResize);
+    importEl("importInfo").textContent=`Model vytvořen: ${w} × ${h} × ${d} mm · profil ${pw} × ${ph} mm. Jde o parametrický orientační rám; importovaná geometrie ani svary nejsou automaticky rekonstruovány.`;
+  }catch(err){importEl("importInfo").textContent=err.message||String(err)}
+  finally{importEl("buildImport3d").disabled=false}
+}
+importEl("buildImport3d").addEventListener("click",buildImportedModel);
+importEl("resetImport").addEventListener("click",()=>{importEl("sourceFile").value="";importEl("importW").value=2400;importEl("importH").value=1100;importEl("importD").value=80;importedDxf=null;importPreview("Zde se zobrazí náhled vybraného souboru.");importStatus("Soubor se zpracovává pouze v tomto prohlížeči. Zatím se nikam nenahrává.");importEl("importInfo").textContent="Import byl vymazán.";if(importRenderer){importRenderer.dispose();importRenderer=null;importEl("import3dViewport").innerHTML='<div id="import3dPlaceholder" style="padding:24px;color:#9aabb4">Po načtení souboru a potvrzení rozměrů klikni na „Vytvořit 3D model“.</div>'}});
+
 async function init(){const {data:{session}}=await db.auth.getSession();if(session)await showApp(session.user);else showLogin();db.auth.onAuthStateChange((ev,s)=>{if(ev==="SIGNED_IN"&&s)showApp(s.user);if(ev==="SIGNED_OUT")showLogin()})}init();
 })();
 </script>
