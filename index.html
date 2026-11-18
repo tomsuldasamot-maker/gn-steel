@@ -18,7 +18,7 @@ label{display:block;font-size:12px;color:#a9b8bf;margin:8px 0}input,select,texta
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.between{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .nav{display:flex;gap:7px;flex-wrap:wrap;margin:16px 0}.nav button{background:#1b2a32;border:1px solid #344751;color:#c7d3d8}.nav button.active{background:var(--orange);color:#15100a;border-color:var(--orange)}
-.statgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}.stat{background:linear-gradient(140deg,#1d2c34,#111a20);border:1px solid #344751;border-radius:12px;padding:15px}.stat strong{display:block;font-size:26px;color:#f1a75e}.stat span{font-size:12px;color:var(--muted)}
+.statgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:16px 0}.stat{background:linear-gradient(140deg,#1d2c34,#111a20);border:1px solid #344751;border-radius:12px;padding:15px}.stat strong{display:block;font-size:26px;color:#f1a75e}.stat span{font-size:12px;color:var(--muted)}
 .cardlist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.item{border:1px solid #2e414b;background:#111a20;border-radius:11px;padding:14px}.item p{margin:7px 0;color:var(--muted);font-size:12px}.tag{font-size:11px;background:#26363e;border-radius:20px;padding:5px 9px;color:#d6e0e4;white-space:nowrap}
 .notice{padding:12px;border:1px solid #40525c;border-radius:9px;margin:12px 0;background:#1b2930;white-space:pre-wrap}.notice.error{border-color:#8e4d48;color:#ffd4cf}.notice.ok{border-color:#3d7754;color:#c9f3d7}
 table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:10px;border-bottom:1px solid #293943}th{color:#9fb0b8;font-weight:600}
@@ -42,7 +42,7 @@ footer{text-align:center;color:#788991;font-size:11px;padding:20px}
 <button data-page="home" class="active">⌂ Domů</button><button data-page="jobs">▤ Zakázky</button><button data-page="customers">♙ Zákazníci</button><button data-page="calculator">▧ Kalkulace</button>
 </nav>
 <section id="page-home">
-<div class="statgrid"><div class="stat"><strong id="statJobs">—</strong><span>Celkem zakázek</span></div><div class="stat"><strong id="statActive">—</strong><span>Rozpracované</span></div><div class="stat"><strong id="statCustomers">—</strong><span>Zákazníci</span></div><div class="stat"><strong id="statValue">—</strong><span>Orientační náklady</span></div></div>
+<div class="statgrid"><div class="stat"><strong id="statJobs">—</strong><span>Celkem zakázek</span></div><div class="stat"><strong id="statActive">—</strong><span>Rozpracované</span></div><div class="stat"><strong id="statCustomers">—</strong><span>Zákazníci</span></div><div class="stat"><strong id="statValue">—</strong><span>Celková částka</span></div><div class="stat"><strong id="statWork">—</strong><span>Výroba / montáž</span></div><div class="stat"><strong id="statMaterial">—</strong><span>Materiál</span></div></div>
 <div class="grid">
 <div class="panel"><div class="between"><h2>Poslední zakázky</h2><button class="secondary" data-goto="jobs">Všechny zakázky</button></div><div id="homeJobs" class="muted">Načítám…</div></div>
 <div class="panel"><h2>Rychlé spuštění</h2><p class="muted small">Nejčastější činnosti v dílně a kanceláři.</p><div class="actions"><button data-goto="jobs">＋ Nová zakázka</button><button class="secondary" data-goto="customers">＋ Nový zákazník</button><button class="secondary" data-goto="calculator">Otevřít kalkulaci</button></div><hr style="border:0;border-top:1px solid #2c3d46;margin:18px 0"><p class="muted small">Data se načítají z vašeho společného Supabase pracovního prostoru.</p></div>
@@ -182,7 +182,20 @@ async function loadJobs(){const {data,error}=await db.from("jobs").select("*,cus
 function total(j){return (+j.material_cost||0)+(+j.extras_cost||0)+(+j.labor_hours||0)*(+j.hourly_rate||0)+(+j.installation_cost||0)+(+j.overhead_cost||0)}
 function renderJobs(){$("jobsList").innerHTML=jobs.length?jobs.map(j=>`<article class="item" style="margin:9px 0"><div class="between"><div><strong>${esc(j.job_number?j.job_number+" · ":"")}${esc(j.name)}</strong><p>${esc(j.customers?.name||"Bez zákazníka")} · ${money(total(j))}</p></div><span class="tag">${esc(status[j.status]||j.status)}</span></div>${j.notes?`<p>${esc(j.notes)}</p>`:""}<div class="actions"><button class="secondary" data-doc="${j.id}">Přiložit výkres / foto</button><button class="secondary" data-listdoc="${j.id}">Přílohy</button><button class="danger" data-jdel="${j.id}">Smazat</button></div><div id="docs-${j.id}" class="small muted"></div></article>`).join(""):"<p class='muted'>Zatím zde nejsou žádné zakázky.</p>";
 $("jobsList").querySelectorAll("[data-doc]").forEach(b=>b.onclick=()=>uploadPdf(b.dataset.doc));$("jobsList").querySelectorAll("[data-listdoc]").forEach(b=>b.onclick=()=>listDocs(b.dataset.listdoc));$("jobsList").querySelectorAll("[data-jdel]").forEach(b=>b.onclick=()=>deleteJob(b.dataset.jdel))}
-function renderHome(){$("statJobs").textContent=jobs.length;$("statActive").textContent=jobs.filter(j=>["approved","in_progress"].includes(j.status)).length;$("statCustomers").textContent=customers.length;$("statValue").textContent=money(jobs.reduce((a,j)=>a+total(j),0));$("homeJobs").innerHTML=jobs.length?jobs.slice(0,5).map(j=>`<div class="between" style="padding:9px 0;border-bottom:1px solid #293943"><div><strong>${esc(j.name)}</strong><div class="small muted">${esc(j.customers?.name||"Bez zákazníka")}</div></div><span class="tag">${esc(status[j.status]||j.status)}</span></div>`).join(""):"<p class='muted'>Zatím nejsou žádné zakázky. Vytvoř první.</p>"}
+function renderHome(){
+ $("statJobs").textContent=jobs.length;
+ $("statActive").textContent=jobs.filter(j=>["approved","in_progress"].includes(j.status)).length;
+ $("statCustomers").textContent=customers.length;
+ const sums=jobs.reduce((a,j)=>{
+  const material=(+j.material_cost||0)+(+j.extras_cost||0);
+  const work=(+j.labor_hours||0)*(+j.hourly_rate||0)+(+j.installation_cost||0)+(+j.overhead_cost||0);
+  a.material+=material;a.work+=work;a.total+=total(j);return a;
+ },{material:0,work:0,total:0});
+ $("statValue").textContent=money(sums.total);
+ $("statWork").textContent=money(sums.work);
+ $("statMaterial").textContent=money(sums.material);
+ $("homeJobs").innerHTML=jobs.length?jobs.slice(0,5).map(j=>`<div class="between" style="padding:9px 0;border-bottom:1px solid #293943"><div><strong>${esc(j.name)}</strong><div class="small muted">${esc(j.customers?.name||"Bez zákazníka")}</div></div><span class="tag">${esc(status[j.status]||j.status)}</span></div>`).join(""):"<p class=\'muted\'>Zatím zde nejsou žádné zakázky. Vytvoř první.</p>"
+}
 $("loginForm").onsubmit=async e=>{e.preventDefault();$("loginBtn").disabled=true;const {data,error}=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});$("loginBtn").disabled=false;if(error)loginMsg("Přihlášení se nezdařilo: "+error.message);else await showApp(data.user)};
 $("logoutBtn").onclick=()=>db.auth.signOut();$("refreshBtn").onclick=refreshAll;
 document.querySelectorAll("[data-page]").forEach(b=>b.onclick=()=>page(b.dataset.page));document.querySelectorAll("[data-goto]").forEach(b=>b.onclick=()=>page(b.dataset.goto));
