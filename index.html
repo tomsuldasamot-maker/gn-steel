@@ -87,7 +87,7 @@ footer{text-align:center;color:#788991;font-size:11px;padding:20px}
   <div class="panel">
     <h2>1. Materiál</h2>
     <div class="grid">
-      <label>Druh profilu<select id="qType"><option value="box">Jekl – čtvercový / obdélníkový</option><option value="tube">Trubka kruhová</option><option value="flat">Pásovina</option><option value="sheet">Plech</option><option value="manual">Vlastní profil / jiný materiál</option></select></label>
+      <label>Druh profilu<select id="qType"><option value="box">Jekl – čtvercový / obdélníkový</option><option value="tube">Trubka kruhová</option><option value="flat">Pásovina</option><option value="sheet">Plech</option><option value="manual">Vlastní profil / jiný materiál</option></select></label><div class="small muted" id="customProfileHint">Vlastní druhy profilů se ukládají do společné nabídky GN STEEL.</div><button type="button" class="secondary" id="qSaveCustomType" style="margin-top:4px">＋ Uložit vlastní druh profilu</button>
       <label>Označení<input id="qLabel" placeholder="Např. Jekl 80×50×3"></label>
     </div>
     <div class="grid3" id="qDims">
@@ -185,7 +185,7 @@ function msg(t,type=""){const e=$("appMsg");e.textContent=t;e.className="notice"
 function loginMsg(t){$("loginMsg").textContent=t;$("loginMsg").classList.remove("hidden")}
 function page(name){document.querySelectorAll("[id^=page-]").forEach(x=>x.classList.add("hidden"));$("page-"+name).classList.remove("hidden");document.querySelectorAll("[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===name));if(name==="calculator"){populateQuoteCustomers();recalcQuote()}}
 function showLogin(){$("loginPanel").classList.remove("hidden");$("appPanel").classList.add("hidden");$("logoutBtn").classList.add("hidden");$("account").textContent="Nepřihlášen"}
-async function showApp(u){user=u;$("loginPanel").classList.add("hidden");$("appPanel").classList.remove("hidden");$("logoutBtn").classList.remove("hidden");$("account").textContent=u.email||"Přihlášen";$("welcome").textContent="Pracovní přehled";const {data,error}=await db.from("organization_members").select("organization_id,role,organizations(name)").eq("user_id",u.id).limit(1).maybeSingle();if(error){msg("Chyba pracovního prostoru: "+error.message,"error");return}if(!data){msg("Tento účet není přiřazen k pracovnímu prostoru GN STEEL.","error");return}org=data.organization_id;$("workspaceInfo").textContent=(data.organizations?.name||"GN STEEL")+" · "+data.role+" · "+u.email;await refreshAll()}
+async function showApp(u){user=u;$("loginPanel").classList.add("hidden");$("appPanel").classList.remove("hidden");$("logoutBtn").classList.remove("hidden");$("account").textContent=u.email||"Přihlášen";$("welcome").textContent="Pracovní přehled";const {data,error}=await db.from("organization_members").select("organization_id,role,organizations(name)").eq("user_id",u.id).limit(1).maybeSingle();if(error){msg("Chyba pracovního prostoru: "+error.message,"error");return}if(!data){msg("Tento účet není přiřazen k pracovnímu prostoru GN STEEL.","error");return}org=data.organization_id;$("workspaceInfo").textContent=(data.organizations?.name||"GN STEEL")+" · "+data.role+" · "+u.email;await refreshAll();await loadCustomProfileTypes()}
 async function refreshAll(){await Promise.all([loadCustomers(),loadJobs()]);renderHome()}
 async function loadCustomers(){const {data,error}=await db.from("customers").select("*").eq("organization_id",org).order("name");if(error){$("customersList").textContent="Chyba: "+error.message;return}customers=data||[];$("customerCount").textContent=customers.length+" záznamů";$("customersList").innerHTML=customers.length?`<div class="cardlist">${customers.map(c=>`<article class="item"><div class="between"><strong>${esc(c.name)}</strong><span class="tag">${esc(c.ico||"Zákazník")}</span></div><p>${esc(c.phone||"")} ${c.email?"· "+esc(c.email):""}</p><p>${esc(c.address||"")}</p>${c.notes?`<p>${esc(c.notes)}</p>`:""}<div class="actions"><button class="secondary" data-cedit="${c.id}">Upravit</button><button class="danger" data-cdel="${c.id}">Smazat</button></div></article>`).join("")}</div>`:"<p class='muted'>Zatím nejsou přidáni žádní zákazníci.</p>";
 $("customersList").querySelectorAll("[data-cedit]").forEach(b=>b.onclick=()=>editCustomer(b.dataset.cedit));$("customersList").querySelectorAll("[data-cdel]").forEach(b=>b.onclick=()=>deleteCustomer(b.dataset.cdel));
@@ -293,6 +293,32 @@ async function listDocs(jobId){
 
 // --- GN STEEL kalkulátor: lokální výpočet, bez zásahu do existujících databázových tabulek ---
 let quoteMaterials=[];
+let customProfileTypes=[];
+function isCustomProfileType(type){return customProfileTypes.some(x=>x.name===type)}
+async function loadCustomProfileTypes(){
+ if(!org)return;
+ const {data,error}=await db.from("custom_profile_types").select("id,name,weight_kg_m,area_m2_m").eq("organization_id",org).order("name");
+ if(error){console.warn("Vlastní profily nelze načíst:",error.message);return}
+ customProfileTypes=data||[];
+ const select=$("qType"),keep=select.value;
+ select.querySelectorAll("option[data-custom-profile]").forEach(o=>o.remove());
+ customProfileTypes.forEach(x=>{const o=document.createElement("option");o.value=x.name;o.textContent=x.name;o.dataset.customProfile="1";select.appendChild(o)});
+ if([...select.options].some(o=>o.value===keep))select.value=keep;
+}
+async function saveCustomProfileType(){
+ const name=prompt("Zadej nový druh profilu nebo materiálu (např. Nerez trubka):");
+ if(!name||!name.trim())return;
+ const clean=name.trim();
+ if(customProfileTypes.some(x=>x.name.toLocaleLowerCase("cs-CZ")===clean.toLocaleLowerCase("cs-CZ"))){msg("Tento druh už v nabídce je.","error");return}
+ const kgText=prompt("Zadej hmotnost materiálu v kg/m:","");if(kgText===null)return;
+ const areaText=prompt("Zadej povrch materiálu v m²/m:","");if(areaText===null)return;
+ const kg=Number(kgText.replace(",",".")),area=Number(areaText.replace(",","."));
+ if(!Number.isFinite(kg)||kg<0||!Number.isFinite(area)||area<0){msg("Zadej platné nezáporné hodnoty kg/m a m²/m.","error");return}
+ const {error}=await db.from("custom_profile_types").insert({organization_id:org,name:clean,weight_kg_m:kg,area_m2_m:area});
+ if(error){msg("Druh profilu se nepodařilo uložit: "+error.message,"error");return}
+ await loadCustomProfileTypes();$("qType").value=clean;$("qLabel").value=clean;$("qKg").value=kg;$("qArea").value=area;qTypeChange();msg("Druh profilu včetně váhy a plochy byl uložen do společné nabídky GN STEEL.","ok");
+}
+
 const qv=id=>Number($(id).value)||0;
 function qfmt(n){return new Intl.NumberFormat("cs-CZ",{maximumFractionDigits:2}).format(n||0)}
 function populateQuoteCustomers(){
@@ -306,22 +332,22 @@ function qProfile(){
  else if(type==="tube"&&a>2*t&&t>0){kg=Math.PI/4*(a*a-(a-2*t)**2)*.00785;area=Math.PI*a/1000;hint="Trubka: průměr a tloušťka stěny."}
  else if(type==="flat"&&a>0&&b>0){kg=a*b*.00785;area=2*(a+b)/1000;hint="Pásovina: šířka × tloušťka."}
  else if(type==="sheet"){const thick=qv("qSheetT");kg=thick*7.85;area=2;hint="Plech: zadej plochu tabule a tloušťku. Hmotnost je přepočtena na 1 m²."}
- else {hint="Vlastní profil: zadej hmotnost kg/m a povrch m²/m ručně."}
- if(type!=="sheet"){if(kg>0)$("qKg").value=kg.toFixed(3);if(area>0)$("qArea").value=area.toFixed(3)}
+ else {const saved=customProfileTypes.find(x=>x.name===type);if(saved){kg=Number(saved.weight_kg_m)||0;area=Number(saved.area_m2_m)||0;hint="Uložený vlastní profil: hodnoty kg/m a m²/m byly načteny."}else{hint="Vlastní profil: zadej hmotnost kg/m a povrch m²/m ručně."}}
+ if(type!=="sheet"){if(isCustomProfileType(type)||type==="manual"){$("qKg").value=kg.toFixed(3);$("qArea").value=area.toFixed(3)}else{if(kg>0)$("qKg").value=kg.toFixed(3);if(area>0)$("qArea").value=area.toFixed(3)}}
  $("qHint").textContent=hint;
 }
 function qTypeChange(){
- const type=$("qType").value;$("qSheet").classList.toggle("hidden",type!=="sheet");
- $("qDims").classList.toggle("hidden",type==="sheet"||type==="manual");
- if(type==="tube"){$("qB").parentElement.classList.add("hidden");$("qA").previousSibling.textContent="Vnější průměr (mm)"}
+ const type=$("qType").value;const manual=type==="manual"||isCustomProfileType(type);$("qSheet").classList.toggle("hidden",type!=="sheet");
+ $("qDims").classList.toggle("hidden",type==="sheet"||manual);
+ if(manual){$("qB").parentElement.classList.add("hidden");$("qT").parentElement.classList.add("hidden")}else if(type==="tube"){$("qB").parentElement.classList.add("hidden");$("qA").previousSibling.textContent="Vnější průměr (mm)"}
  else {$("qB").parentElement.classList.toggle("hidden",type==="flat"||type==="manual");$("qA").previousSibling.textContent="Šířka / průměr (mm)"}
- $("qT").parentElement.classList.toggle("hidden",type==="manual");
+ $("qT").parentElement.classList.toggle("hidden",manual);
  if(type==="flat"){$("qB").parentElement.classList.remove("hidden");$("qB").previousSibling.textContent="Tloušťka pásoviny (mm)"}
  else $("qB").previousSibling.textContent="Výška (mm)";
 }
 function qAdd(){
  if($("qType").value==="sheet")qProfile();
- const type=$("qType").value,label=$("qLabel").value.trim()||({box:"Jekl",tube:"Trubka",flat:"Pásovina",sheet:"Plech",manual:"Vlastní materiál"}[type]);
+ const type=$("qType").value,label=$("qLabel").value.trim()||(isCustomProfileType(type)?type:({box:"Jekl",tube:"Trubka",flat:"Pásovina",sheet:"Plech",manual:"Vlastní materiál"}[type]));
  const length=type==="sheet"?qv("qSheetArea"):qv("qLength"),qty=Math.max(1,Math.floor(qv("qQty")));
  const kgm=type==="sheet"?qv("qSheetT")*7.85:qv("qKg"),aream=type==="sheet"?2:qv("qArea"),unitPrice=qv("qPrice");
  if(!(length>0&&kgm>=0&&aream>=0)){msg("Zkontroluj délku/plochu a údaje materiálu.","error");return}
@@ -348,7 +374,7 @@ function resetQuote(){
  quoteMaterials=[];["qName","qLabel","qNotes"].forEach(id=>$(id).value="");["qHours","qInstall","qExtra","qTransport","qOther"].forEach(id=>$(id).value=0);
  $("qRate").value=650;$("qOverhead").value=10;$("qProfit").value=20;$("qVat").value=21;$("qRound").value=1;$("qCustomer").value="";recalcQuote();
 }
-$("qType").addEventListener("change",qTypeChange);$("qCalcProfile").onclick=qProfile;$("qAddMaterial").onclick=qAdd;
+$("qType").addEventListener("change",()=>{if(isCustomProfileType($("qType").value))$("qLabel").value=$("qType").value;qTypeChange();if(isCustomProfileType($("qType").value))qProfile()});$("qSaveCustomType").onclick=saveCustomProfileType;$("qCalcProfile").onclick=qProfile;$("qAddMaterial").onclick=qAdd;
 ["qHours","qRate","qInstall","qExtra","qCoat","qTransport","qOther","qOverhead","qProfit","qVat","qRound"].forEach(id=>$(id).addEventListener("input",recalcQuote));
 try{$("qZincPrice").value=localStorage.getItem("gnSteelZincPrice")??"0"}catch(e){}
 $("qZincPrice").addEventListener("input",()=>{try{localStorage.setItem("gnSteelZincPrice",String(Math.max(0,qv("qZincPrice"))))}catch(e){}recalcQuote()});
