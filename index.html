@@ -40,7 +40,7 @@ footer{text-align:center;color:#788991;font-size:11px;padding:20px}
 <div class="between"><div><div class="pill">VÍTEJTE V GN STEEL</div><h1 id="welcome">Pracovní přehled</h1><div id="workspaceInfo" class="muted small"></div></div><div class="row"><span class="tag">Cloud synchronizace</span></div></div>
 <div id="appMsg" class="notice hidden"></div>
 <nav class="nav">
-<button data-page="home" class="active">⌂ Domů</button><button data-page="jobs">▤ Zakázky</button><button data-page="customers">♙ Zákazníci</button><button data-page="calculator">▧ Kalkulace</button>
+<button data-page="home" class="active">⌂ Domů</button><button data-page="jobs">▤ Zakázky</button><button data-page="customers">♙ Zákazníci</button><button data-page="calculator">▧ Kalkulace</button><button data-page="invoices">▧ Faktury</button>
 </nav>
 <section id="page-home">
 <div class="statgrid"><div class="stat"><strong id="statJobs">—</strong><span>Celkem zakázek</span></div><div class="stat"><strong id="statActive">—</strong><span>Rozpracované</span></div><div class="stat"><strong id="statCustomers">—</strong><span>Zákazníci</span></div><div class="stat"><strong id="statValue">—</strong><span>Celková částka</span></div><div class="stat stat-click" id="statWorkCard" role="button" tabindex="0" aria-label="Zobrazit rozpis výroby a montáže"><strong id="statWork">—</strong><span>Výroba / montáž · klikni pro rozpis</span></div><div class="stat stat-click" id="statMaterialCard" role="button" tabindex="0" aria-label="Zobrazit rozpis materiálu"><strong id="statMaterial">—</strong><span>Materiál · klikni pro rozpis</span></div><div class="stat stat-click" id="statInvoicesCard" role="button" tabindex="0" aria-label="Zobrazit evidenci faktur"><strong id="statInvoices">—</strong><span>Faktury · klikni pro přehled</span></div></div>
@@ -168,6 +168,7 @@ footer{text-align:center;color:#788991;font-size:11px;padding:20px}
   </div>
 </div>
 </section>
+<section id="page-invoices" class="hidden"><div class="panel"><div class="between"><div><div class="pill">ÚČETNÍ EVIDENCE</div><h2>Faktury</h2><p class="muted small">Přehled všech faktur připojených k zakázkám.</p></div><button type="button" class="secondary" onclick="showInvoices()">Obnovit</button></div><div id="invoiceList" class="muted">Načítám faktury…</div></div></section>
 </section>
 </main>
 <footer>GN STEEL · Pracovní systém · Přístup pouze pro přihlášeného člena pracovního prostoru</footer>
@@ -208,8 +209,7 @@ function showFinanceDetail(kind){
  panel.classList.remove("hidden");panel.scrollIntoView({behavior:"smooth",block:"nearest"});
 }
 async function showInvoices(){
- const panel=$("financeDetail"),title=$("financeDetailTitle"),body=$("financeDetailBody");
- title.textContent="Evidence faktur";body.innerHTML='<p class="muted">Načítám faktury…</p>';panel.classList.remove("hidden");panel.scrollIntoView({behavior:"smooth",block:"nearest"});
+ page("invoices");const body=$("invoiceList");body.innerHTML='<p class="muted">Načítám faktury…</p>';
  const {data,error}=await db.from("documents").select("file_name,storage_path,created_at,mime_type,file_size,job_id").eq("organization_id",org).eq("document_type","invoice").order("created_at",{ascending:false});
  if(error){body.innerHTML=`<p class="notice error">Faktury nelze načíst: ${esc(error.message)}</p>`;return}
  if(!data?.length){body.innerHTML='<p class="muted" style="padding:12px 0">Zatím není připojena žádná faktura. Fakturu přidáš v detailu příslušné zakázky.</p>';return}
@@ -232,7 +232,7 @@ function renderHome(){
 $("closeFinanceDetail").onclick=()=>$("financeDetail").classList.add("hidden");
 $("loginForm").onsubmit=async e=>{e.preventDefault();$("loginBtn").disabled=true;const {data,error}=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});$("loginBtn").disabled=false;if(error)loginMsg("Přihlášení se nezdařilo: "+error.message);else await showApp(data.user)};
 $("logoutBtn").onclick=()=>db.auth.signOut();$("refreshBtn").onclick=refreshAll;
-document.querySelectorAll("[data-page]").forEach(b=>b.onclick=()=>page(b.dataset.page));document.querySelectorAll("[data-goto]").forEach(b=>b.onclick=()=>page(b.dataset.goto));
+document.querySelectorAll("[data-page]").forEach(b=>b.onclick=()=>{page(b.dataset.page);if(b.dataset.page==="invoices")showInvoices()});document.querySelectorAll("[data-goto]").forEach(b=>b.onclick=()=>page(b.dataset.goto));
 function resetCustomerForm(){editingCustomerId=null;$("customerForm").reset();$("customerFormTitle").textContent="Nový zákazník";$("saveCustomerBtn").textContent="Uložit zákazníka";$("cancelCustomerEditBtn").classList.add("hidden")}
 function editCustomer(id){const c=customers.find(x=>String(x.id)===String(id));if(!c)return;editingCustomerId=c.id;$("custName").value=c.name||"";$("custIco").value=c.ico||"";$("custDic").value=c.dic||"";$("custPhone").value=c.phone||"";$("custEmail").value=c.email||"";$("custAddress").value=c.address||"";$("custNotes").value=c.notes||"";$("customerFormTitle").textContent="Upravit zákazníka";$("saveCustomerBtn").textContent="Uložit změny";$("cancelCustomerEditBtn").classList.remove("hidden");$("customerForm").scrollIntoView({behavior:"smooth",block:"start"})}
 function resetJobForm(){editingJobId=null;$("jobForm").reset();$("materialCost").value=0;$("laborHours").value=0;$("hourlyRate").value=650;$("installCost").value=0;$("jobFormTitle").textContent="Nová zakázka";$("saveJobBtn").textContent="Uložit zakázku do cloudu";$("cancelJobEditBtn").classList.add("hidden")}
