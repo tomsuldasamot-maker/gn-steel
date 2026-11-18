@@ -191,8 +191,8 @@ $("customersList").querySelectorAll("[data-cedit]").forEach(b=>b.onclick=()=>edi
 $("jobCustomer").innerHTML='<option value="">Bez přiřazeného zákazníka</option>'+customers.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("")}
 async function loadJobs(){const {data,error}=await db.from("jobs").select("*,customers(name)").eq("organization_id",org).order("created_at",{ascending:false});if(error){$("jobsList").textContent="Chyba: "+error.message;return}jobs=data||[];renderJobs()}
 function total(j){return (+j.material_cost||0)+(+j.extras_cost||0)+(+j.labor_hours||0)*(+j.hourly_rate||0)+(+j.installation_cost||0)+(+j.overhead_cost||0)}
-function renderJobs(){$("jobsList").innerHTML=jobs.length?jobs.map(j=>`<article class="item" style="margin:9px 0"><div class="between"><div><strong>${esc(j.job_number?j.job_number+" · ":"")}${esc(j.name)}</strong><p>${esc(j.customers?.name||"Bez zákazníka")} · ${money(total(j))}</p></div><span class="tag">${esc(status[j.status]||j.status)}</span></div>${j.notes?`<p>${esc(j.notes)}</p>`:""}<div class="actions"><button class="secondary" data-jedit="${j.id}">Upravit</button><button class="secondary" data-doc="${j.id}">Přiložit výkres / foto</button><button class="secondary" data-listdoc="${j.id}">Přílohy</button><button class="danger" data-jdel="${j.id}">Smazat</button></div><div id="docs-${j.id}" class="small muted"></div></article>`).join(""):"<p class='muted'>Zatím zde nejsou žádné zakázky.</p>";
-$("jobsList").querySelectorAll("[data-jedit]").forEach(b=>b.onclick=()=>editJob(b.dataset.jedit));$("jobsList").querySelectorAll("[data-doc]").forEach(b=>b.onclick=()=>uploadPdf(b.dataset.doc));$("jobsList").querySelectorAll("[data-listdoc]").forEach(b=>b.onclick=()=>listDocs(b.dataset.listdoc));$("jobsList").querySelectorAll("[data-jdel]").forEach(b=>b.onclick=()=>deleteJob(b.dataset.jdel))}
+function renderJobs(){$("jobsList").innerHTML=jobs.length?jobs.map(j=>`<article class="item" style="margin:9px 0"><div class="between"><div><strong>${esc(j.job_number?j.job_number+" · ":"")}${esc(j.name)}</strong><p>${esc(j.customers?.name||"Bez zákazníka")} · ${money(total(j))}</p></div><span class="tag">${esc(status[j.status]||j.status)}</span></div>${j.notes?`<p>${esc(j.notes)}</p>`:""}<div class="actions"><button class="secondary" data-jedit="${j.id}">Upravit</button><button class="secondary" data-doc="${j.id}">Přidat foto / výkres</button><button class="secondary" data-invoice="${j.id}">Přidat fakturu</button><button class="secondary" data-listdoc="${j.id}">Zobrazit přílohy</button><button class="danger" data-jdel="${j.id}">Smazat</button></div><div id="docs-${j.id}" class="small muted"></div></article>`).join(""):"<p class='muted'>Zatím zde nejsou žádné zakázky.</p>";
+$("jobsList").querySelectorAll("[data-jedit]").forEach(b=>b.onclick=()=>editJob(b.dataset.jedit));$("jobsList").querySelectorAll("[data-doc]").forEach(b=>b.onclick=()=>uploadJobFile(b.dataset.doc,"attachment"));$("jobsList").querySelectorAll("[data-invoice]").forEach(b=>b.onclick=()=>uploadJobFile(b.dataset.invoice,"invoice"));$("jobsList").querySelectorAll("[data-listdoc]").forEach(b=>b.onclick=()=>listDocs(b.dataset.listdoc));$("jobsList").querySelectorAll("[data-jdel]").forEach(b=>b.onclick=()=>deleteJob(b.dataset.jdel))}
 function financeBreakdown(j,kind){
  const material=+j.material_cost||0,extras=+j.extras_cost||0;
  const production=(+j.labor_hours||0)*(+j.hourly_rate||0),installation=+j.installation_cost||0,overhead=+j.overhead_cost||0;
@@ -230,8 +230,54 @@ $("customerForm").onsubmit=async e=>{e.preventDefault();const b=$("saveCustomerB
 $("jobForm").onsubmit=async e=>{e.preventDefault();const b=$("saveJobBtn");b.disabled=true;const p={organization_id:org,customer_id:$("jobCustomer").value||null,name:$("jobName").value.trim(),job_number:$("jobNumber").value.trim()||null,status:$("jobStatus").value,offer_date:$("offerDate").value||null,notes:$("jobNotes").value.trim()||null,material_cost:+$("materialCost").value||0,labor_hours:+$("laborHours").value||0,hourly_rate:+$("hourlyRate").value||650,installation_cost:+$("installCost").value||0};const query=editingJobId?db.from("jobs").update(p).eq("id",editingJobId).eq("organization_id",org):db.from("jobs").insert({...p,created_by:user.id});const {error}=await query;b.disabled=false;if(error){msg("Zakázku se nepodařilo uložit: "+error.message,"error");return}const wasEdit=!!editingJobId;resetJobForm();msg(wasEdit?"Změny zakázky byly uloženy.":"Zakázka byla uložena do cloudu.","ok");await loadJobs();renderHome()};
 async function deleteCustomer(id){if(!confirm("Smazat zákazníka? Pokud má zakázky, databáze smazání nepovolí."))return;const {error}=await db.from("customers").delete().eq("id",id).eq("organization_id",org);if(error){msg("Zákazníka nelze smazat: "+error.message,"error");return}await loadCustomers();renderHome()}
 async function deleteJob(id){if(!confirm("Opravdu smazat zakázku?"))return;const {error}=await db.from("jobs").delete().eq("id",id).eq("organization_id",org);if(error){msg("Zakázku nelze smazat: "+error.message,"error");return}await loadJobs();renderHome()}
-async function uploadPdf(jobId){const pick=document.createElement("input");pick.type="file";pick.accept=".pdf,.dxf,.dwg,.jpg,.jpeg,.png,.webp,application/pdf,image/*";pick.onchange=async()=>{const f=pick.files[0];if(!f)return;const ext=f.name.split(".").pop().toLowerCase();const allowed=["pdf","dxf","dwg","jpg","jpeg","png","webp"];if(!allowed.includes(ext)){msg("Podporované přílohy: PDF, DXF, DWG, JPG, PNG a WEBP.","error");return}if(f.size>30*1024*1024){msg("Soubor je větší než 30 MB.","error");return}const mime=f.type||({dxf:"application/dxf",dwg:"application/acad",pdf:"application/pdf"}[ext]||"application/octet-stream");const path=`${org}/${jobId}/${crypto.randomUUID()}_${f.name.replace(/[^a-zA-Z0-9._-]/g,"_")}`;const up=await db.storage.from("gnsteel-documents").upload(path,f,{contentType:mime});if(up.error){msg("Nahrání přílohy selhalo: "+up.error.message,"error");return}const ins=await db.from("documents").insert({organization_id:org,job_id:jobId,file_name:f.name,storage_path:path,mime_type:mime,file_size:f.size,document_type:ext==="pdf"||ext==="dxf"||ext==="dwg"?"drawing":"photo",uploaded_by:user.id});if(ins.error){msg("Soubor se nahrál, ale evidence selhala: "+ins.error.message,"error");return}msg("Příloha byla připojena k zakázce.","ok");await listDocs(jobId)};pick.click()}
-async function listDocs(jobId){const target=$("docs-"+jobId);target.textContent="Načítám…";const {data,error}=await db.from("documents").select("file_name,storage_path,created_at").eq("job_id",jobId).order("created_at",{ascending:false});if(error){target.textContent=error.message;return}target.innerHTML=data?.length?data.map((d,i)=>`<div style="margin-top:7px">📎 ${esc(d.file_name)} <button class="secondary" data-open="${i}" style="padding:5px 8px">Otevřít</button></div>`).join(""):"Bez příloh";target.querySelectorAll("[data-open]").forEach(b=>b.onclick=async()=>{const d=data[+b.dataset.open];const {data:s,error}=await db.storage.from("gnsteel-documents").createSignedUrl(d.storage_path,300);if(error){msg("Přílohu nelze otevřít: "+error.message,"error");return}window.open(s.signedUrl,"_blank","noopener")})}
+function uploadJobFile(jobId,kind="attachment"){
+ if(!user||!org){msg("Nejdříve se přihlas do pracovního prostoru GN STEEL.","error");return}
+ const pick=document.createElement("input");pick.type="file";pick.style.position="fixed";pick.style.left="-10000px";pick.style.opacity="0";
+ pick.accept=kind==="invoice"?".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/*":".pdf,.dxf,.dwg,.jpg,.jpeg,.png,.webp,application/pdf,image/*";
+ document.body.appendChild(pick);
+ const cleanup=()=>{if(pick.parentNode)pick.parentNode.removeChild(pick)};
+ pick.addEventListener("cancel",cleanup,{once:true});
+ pick.addEventListener("change",async()=>{
+  const f=pick.files&&pick.files[0];cleanup();if(!f)return;
+  const ext=(f.name.split(".").pop()||"").toLowerCase();
+  const allowed=kind==="invoice"?["pdf","jpg","jpeg","png","webp"]:["pdf","dxf","dwg","jpg","jpeg","png","webp"];
+  if(!allowed.includes(ext)){msg(kind==="invoice"?"Fakturu přilož jako PDF nebo obrázek JPG, PNG či WEBP.":"Podporované přílohy: PDF, DXF, DWG, JPG, PNG a WEBP.","error");return}
+  if(f.size>30*1024*1024){msg("Soubor je větší než 30 MB.","error");return}
+  const mime=f.type||({dxf:"application/dxf",dwg:"application/acad",pdf:"application/pdf",jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp"}[ext]||"application/octet-stream");
+  const safeName=f.name.replace(/[^a-zA-Z0-9._-]/g,"_");
+  const path=`${org}/${jobId}/${crypto.randomUUID()}_${safeName}`;
+  msg(kind==="invoice"?"Nahrávám fakturu…":"Nahrávám přílohu…");
+  try{
+   const up=await db.storage.from("gnsteel-documents").upload(path,f,{contentType:mime,upsert:false});
+   if(up.error){msg("Soubor se nepodařilo nahrát: "+up.error.message,"error");return}
+   const documentType=kind==="invoice"?"invoice":(["jpg","jpeg","png","webp"].includes(ext)?"photo":"drawing");
+   const ins=await db.from("documents").insert({organization_id:org,job_id:jobId,file_name:f.name,storage_path:path,mime_type:mime,file_size:f.size,document_type:documentType,uploaded_by:user.id});
+   if(ins.error){await db.storage.from("gnsteel-documents").remove([path]);msg("Soubor se nahrál, ale nepodařilo se uložit jeho evidenci: "+ins.error.message,"error");return}
+   msg(kind==="invoice"?"Faktura byla připojena k zakázce.":"Příloha byla připojena k zakázce.","ok");
+   await listDocs(jobId);
+  }catch(err){msg("Při nahrávání nastala chyba: "+(err?.message||String(err)),"error")}
+ },{once:true});
+ // Input je připojený do stránky a klik se spustí přímo z obsluhy tlačítka.
+ pick.click();
+}
+async function listDocs(jobId){
+ const target=$("docs-"+jobId);if(!target)return;target.textContent="Načítám přílohy…";
+ try{
+  const {data,error}=await db.from("documents").select("file_name,storage_path,created_at,document_type,mime_type,file_size").eq("job_id",jobId).order("created_at",{ascending:false});
+  if(error){target.textContent="Přílohy nelze načíst: "+error.message;return}
+  if(!data?.length){target.textContent="K této zakázce zatím nejsou připojené žádné soubory.";return}
+  const withUrls=await Promise.all(data.map(async d=>{
+   const {data:signed,error:signError}=await db.storage.from("gnsteel-documents").createSignedUrl(d.storage_path,600);
+   return {...d,signedUrl:signError?null:signed?.signedUrl,signError};
+  }));
+  target.innerHTML=withUrls.map(d=>{
+   const type=d.document_type==="invoice"?"FAKTURA":d.document_type==="photo"?"FOTOGRAFIE":"VÝKRES / DOKUMENT";
+   const preview=d.signedUrl&&String(d.mime_type||"").startsWith("image/")?`<a href="${esc(d.signedUrl)}" target="_blank" rel="noopener noreferrer"><img src="${esc(d.signedUrl)}" alt="${esc(d.file_name)}" style="display:block;max-width:150px;max-height:110px;object-fit:contain;border-radius:7px;margin:7px 0"></a>`:"";
+   const action=d.signedUrl?`<a href="${esc(d.signedUrl)}" target="_blank" rel="noopener noreferrer" style="color:#e4b86a;font-weight:700">Otevřít soubor ↗</a>`:`<span class="muted">Soubor nelze otevřít: ${esc(d.signError?.message||"neznámá chyba")}</span>`;
+   return `<div style="margin-top:10px;padding:9px;border:1px solid #2c3d46;border-radius:8px"><div class="between"><strong>${esc(d.file_name)}</strong><span class="tag">${type}</span></div>${preview}<div class="small muted">${d.file_size?Math.max(1,Math.round(d.file_size/1024))+" kB · ":""}${new Date(d.created_at).toLocaleString("cs-CZ")}</div><div style="margin-top:6px">${action}</div></div>`;
+  }).join("");
+ }catch(err){target.textContent="Při načítání příloh nastala chyba: "+(err?.message||String(err))}
+}
 
 // --- GN STEEL kalkulátor: lokální výpočet, bez zásahu do existujících databázových tabulek ---
 let quoteMaterials=[];
