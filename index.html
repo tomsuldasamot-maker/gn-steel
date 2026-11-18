@@ -132,6 +132,12 @@ footer{text-align:center;color:#788991;font-size:11px;padding:20px}
       <label>Nátěr (Kč/m²)<input id="qCoat" type="number" min="0" value="0"></label>
       <label>Doprava (Kč)<input id="qTransport" type="number" min="0" value="0"></label>
     </div>
+    <div class="grid3">
+      <label>Výchozí cena zinkování (Kč/kg)<input id="qZincPrice" type="number" min="0" step="0.1" value="0"></label>
+      <label>Množství pro zinkování (kg)<input id="qZincKg" type="text" value="0" readonly></label>
+      <label>Cena zinkování celkem<input id="qZincTotal" type="text" value="0 Kč" readonly></label>
+    </div>
+    <p class="muted small">Cena za kg je společná pro všechny kalkulace a uloží se jako výchozí nastavení v tomto prohlížeči. Množství kg se automaticky přebírá z celkové hmotnosti materiálu.</p>
     <label>Ostatní náklady (Kč)<input id="qOther" type="number" min="0" value="0"></label>
     <label>Poznámka do nabídky<textarea id="qNotes" placeholder="Rozsah dodávky, povrchová úprava, termín, platnost nabídky…"></textarea></label>
   </div>
@@ -256,11 +262,13 @@ function recalcQuote(){
  $("qMaterialList").innerHTML=quoteMaterials.length?`<div style="overflow-x:auto"><table><thead><tr><th>Položka</th><th>Množství</th><th>Hmotnost</th><th>Povrch</th><th>Cena</th><th></th></tr></thead><tbody>${quoteMaterials.map(x=>{const f=x.length*x.qty;return `<tr><td>${esc(x.label)}</td><td>${qfmt(f)} ${x.type==="sheet"?"m²":"m"}</td><td>${qfmt(x.kgm*f)} kg</td><td>${qfmt(x.aream*f)} m²</td><td>${money(x.unitPrice*f)}</td><td><button class="danger" data-qdel="${x.id}" style="padding:5px 8px">×</button></td></tr>`}).join("")}</tbody></table></div>`:"Zatím nebyl přidán materiál.";
  $("qMaterialList").querySelectorAll("[data-qdel]").forEach(b=>b.onclick=()=>qRemove(Number(b.dataset.qdel)));
  $("qTotalKg").textContent=qfmt(kg)+" kg";$("qTotalArea").textContent=qfmt(area)+" m²";$("qMaterialTotal").textContent=money(mat);
- const work=qv("qHours")*qv("qRate")+qv("qInstall")+qv("qExtra")+area*qv("qCoat")+qv("qTransport")+qv("qOther");
+ const zinc=kg*qv("qZincPrice");
+ $("qZincKg").value=qfmt(kg);$("qZincTotal").value=money(zinc);
+ const work=qv("qHours")*qv("qRate")+qv("qInstall")+qv("qExtra")+area*qv("qCoat")+qv("qTransport")+qv("qOther")+zinc;
  const overhead=(mat+work)*qv("qOverhead")/100,profit=(mat+work+overhead)*qv("qProfit")/100;
  const raw=mat+work+overhead+profit,round=Math.max(1,qv("qRound")),net=Math.round(raw/round)*round,vat=net*qv("qVat")/100,gross=net+vat;
  $("qSumMat").textContent=money(mat);$("qSumWork").textContent=money(work);$("qSumOver").textContent=money(overhead);$("qSumProfit").textContent=money(profit);$("qNet").textContent=money(net);$("qVatValue").textContent=money(vat);$("qGross").textContent=money(gross);
- window.gnQuoteTotals={kg,area,mat,work,overhead,profit,net,vat,gross};
+ window.gnQuoteTotals={kg,area,mat,work,zinc,overhead,profit,net,vat,gross};
 }
 function resetQuote(){
  quoteMaterials=[];["qName","qLabel","qNotes"].forEach(id=>$(id).value="");["qHours","qInstall","qExtra","qCoat","qTransport","qOther"].forEach(id=>$(id).value=0);
@@ -268,11 +276,13 @@ function resetQuote(){
 }
 $("qType").addEventListener("change",qTypeChange);$("qCalcProfile").onclick=qProfile;$("qAddMaterial").onclick=qAdd;
 ["qHours","qRate","qInstall","qExtra","qCoat","qTransport","qOther","qOverhead","qProfit","qVat","qRound"].forEach(id=>$(id).addEventListener("input",recalcQuote));
+try{$("qZincPrice").value=localStorage.getItem("gnSteelZincPrice")??"0"}catch(e){}
+$("qZincPrice").addEventListener("input",()=>{try{localStorage.setItem("gnSteelZincPrice",String(Math.max(0,qv("qZincPrice"))))}catch(e){}recalcQuote()});
 $("qPrint").onclick=()=>{
  recalcQuote();const t=window.gnQuoteTotals,c=$("qCustomer").selectedOptions[0]?.textContent||"—";
  const rows=quoteMaterials.map(x=>`<tr><td>${esc(x.label)}</td><td>${qfmt(x.length*x.qty)} ${x.type==="sheet"?"m²":"m"}</td><td>${money(x.unitPrice*x.length*x.qty)}</td></tr>`).join("");
  const w=window.open("","_blank");if(!w){msg("Pro PDF povol vyskakovací okna pro tuto stránku.","error");return}
- w.document.write(`<!doctype html><html lang="cs"><meta charset="utf-8"><title>Cenová nabídka GN STEEL</title><style>body{font:14px Arial;color:#222;margin:35px}h1{color:#222}table{width:100%;border-collapse:collapse;margin:20px 0}td,th{border-bottom:1px solid #ccc;padding:9px;text-align:left}.total{font-size:22px;font-weight:bold}small{color:#555}</style><h1>GN STEEL</h1><h2>Cenová nabídka: ${esc($("qName").value||"Zakázka")}</h2><p>Zákazník: ${esc(c)}</p><table><tr><th>Materiál</th><th>Množství</th><th>Cena</th></tr>${rows}</table><p>Hmotnost materiálu: ${qfmt(t.kg)} kg<br>Povrch pro nátěr: ${qfmt(t.area)} m²</p><p>Materiál: ${money(t.mat)}<br>Práce a další náklady: ${money(t.work)}<br>Režie: ${money(t.overhead)}<br>Zisk: ${money(t.profit)}<br>Cena bez DPH: ${money(t.net)}<br>DPH: ${money(t.vat)}</p><p class="total">Celkem: ${money(t.gross)}</p><p>${esc($("qNotes").value).replace(/\n/g,"<br>")}</p><small>Vygenerováno v systému GN STEEL. Nabídka je orientační a podléhá potvrzení.</small><script>window.onload=()=>window.print()<\/script></html>`);w.document.close()
+ w.document.write(`<!doctype html><html lang="cs"><meta charset="utf-8"><title>Cenová nabídka GN STEEL</title><style>body{font:14px Arial;color:#222;margin:35px}h1{color:#222}table{width:100%;border-collapse:collapse;margin:20px 0}td,th{border-bottom:1px solid #ccc;padding:9px;text-align:left}.total{font-size:22px;font-weight:bold}small{color:#555}</style><h1>GN STEEL</h1><h2>Cenová nabídka: ${esc($("qName").value||"Zakázka")}</h2><p>Zákazník: ${esc(c)}</p><table><tr><th>Materiál</th><th>Množství</th><th>Cena</th></tr>${rows}</table><p>Hmotnost materiálu: ${qfmt(t.kg)} kg<br>Povrch pro nátěr: ${qfmt(t.area)} m²<br>Zinkování (${qfmt(t.kg)} kg): ${money(t.zinc)}</p><p>Materiál: ${money(t.mat)}<br>Práce a další náklady včetně zinkování: ${money(t.work)}<br>Režie: ${money(t.overhead)}<br>Zisk: ${money(t.profit)}<br>Cena bez DPH: ${money(t.net)}<br>DPH: ${money(t.vat)}</p><p class="total">Celkem: ${money(t.gross)}</p><p>${esc($("qNotes").value).replace(/\n/g,"<br>")}</p><small>Vygenerováno v systému GN STEEL. Nabídka je orientační a podléhá potvrzení.</small><script>window.onload=()=>window.print()<\/script></html>`);w.document.close()
 };
 $("qReset").onclick=()=>{if(confirm("Začít novou kalkulaci?"))resetQuote()};
 qTypeChange();qProfile();
